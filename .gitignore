@@ -1,0 +1,7 @@
+.vagrant/
+.direnv/
+.state/
+local.mk
+data/
+tf/.terraform/
+tf/terraform.tfstate*

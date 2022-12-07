@@ -1,0 +1,44 @@
+configs:
+  secret:
+    argocdServerAdminPassword: $2a$10$5NfHp0WZPysq4c./8Ap8J.IUfhi25sV.UZ3Nk9qEo/.QfG1gVl4t6
+controller:
+  resources:
+    limits:
+      memory: 128Mi
+server:
+  config:
+    admin.enabled: 'false'
+    dex.config: |
+      connectors:
+      - type: ldap
+        id: ldap
+        name: LDAP
+        config:
+          host: 192.168.57.10:389
+          insecureNoSSL: true
+          userSearch:
+            baseDN: dc=nixos,dc=org
+            filter: "(objectclass=posixAccount)"
+            username: uid
+            idAttr: uidNumber
+            emailAttr: mail
+            nameAttr: uid
+          groupSearch:
+            baseDN: dc=nixos,dc=org
+            filter: "(objectclass=posixGroup)"
+            nameAttr: cn
+            userMatchers:
+            - userAttr: uid
+              groupAttr: memberUid
+    url: http://argo.local/
+  extraArgs:
+  - --insecure
+  rbacConfig:
+    policy.default: role:none
+    scopes: '[groups,email]'
+    policy.csv: |
+      p, role:none, *, *, */*, deny
+      g, admins, role:admin
+  resources:
+    limits:
+      memory: 128Mi
