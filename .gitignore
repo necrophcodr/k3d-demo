@@ -4,4 +4,5 @@
 local.mk
 data/
 tf/.terraform/
+tf/.terraform.lock.hcl
 tf/terraform.tfstate*

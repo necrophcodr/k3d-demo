@@ -39,7 +39,11 @@
           kube3d
           gnumake
           vagrant
-          terraform
+          (terraform.withPlugins (p: [
+            p.kubernetes
+            p.kubectl
+            p.helm
+          ]))
           colmena
           argocd
         ];

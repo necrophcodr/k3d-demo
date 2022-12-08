@@ -1,3 +1,14 @@
+terraform {
+  required_version = ">= 0.13"
+
+  required_providers {
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "1.14.0"
+    }
+  }
+}
+
 provider "helm" {
   kubernetes {
     config_path = "../.state/kubeconfig"
@@ -8,6 +19,11 @@ provider "helm" {
 provider "kubernetes" {
   config_path = "../.state/kubeconfig"
   config_context = "k3d-k3d-server"
+}
+
+provider "kubectl" {
+  config_path = "../.state/kubeconfig"
+  config_context = "k3d-k3d-server"  
 }
 
 resource "helm_release" "nginx-ingress" {
@@ -34,12 +50,12 @@ resource "helm_release" "argocd" {
   ]
 }
 
-resource "kubernetes_manifest" "argocd_apps" {
+resource "kubectl_manifest" "argocd_apps" {
   for_each = toset(var.argocd_apps)
   depends_on = [
     helm_release.argocd
   ]
-  manifest = yamldecode(file(each.key))
+  yaml_body = file(each.key)
 }
 
 resource "kubernetes_ingress_v1" "ingress" {

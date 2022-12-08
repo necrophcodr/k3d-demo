@@ -3,9 +3,6 @@
 
 CLUSTER:=k3d-server
 
-STATE:=.state
-STATEF:=.state/.keepme
-
 DEPLOY:=virtualbox
 ENV:=stage
 #TAG:="$(shell git branch --no-color --show-current)-$(shell git rev-parse HEAD)"
@@ -13,49 +10,81 @@ ENV:=stage
 DEPS_NIX:=$(shell find nix -type f -iname '*.nix')
 DEPS_FLAKE:=flake.nix flake.lock
 
--include: local.mk
+-include local.mk
+
+STATE:=.state
+STATEF:=.state/.keepme
+IMAGES:=$(shell find kube/images/$(ENV) -type f -not -name '.keepme')
+IMAGES_TARGETS:=$(shell find kube/images/$(ENV) -type f -not -name '.keepme' -printf '$(STATE)/$(ENV)-$(DEPLOY)-image-%f\n')
+
+$(info Deployment: $(DEPLOY))
+$(info Environment: $(ENV))
 
 $(STATEF):
 	mkdir -p $(STATE)
 	touch $@
 
-$(STATE)/ssh-config: $(STATE)/$(DEPLOY)-ssh-config $(STATEF)
-	cp -L $(STATE)/$(DEPLOY)-ssh-config $@
+$(STATE)/$(ENV)-ssh-config: $(STATE)/$(ENV)-$(DEPLOY)-ssh-config $(STATEF)
+	cp -L $(STATE)/$(ENV)-$(DEPLOY)-ssh-config $@
 
-$(STATE)/virtualbox-ssh-config: $(DEPS_NIX) $(DEPS_FLAKE) $(STATEF)
+$(STATE)/$(ENV)-virtualbox-ssh-config: $(DEPS_NIX) $(DEPS_FLAKE) $(STATEF)
 	vagrant up
 	vagrant ssh-config > $@
 
-$(STATE)/local-ssh-config: $(STATEF)
+$(STATE)/$(ENV)-local-ssh-config: $(STATEF)
 	touch $@
 
-$(STATE)/vm-revision: $(STATE)/$(DEPLOY)-vm-revision $(STATEF)
-	cp -L $(STATE)/$(DEPLOY)-vm-revision $@
+$(STATE)/$(ENV)-vm-revision: $(STATE)/$(DEPLOY)-vm-revision $(STATEF)
+	cp -L $(STATE)/$(ENV)-$(DEPLOY)-vm-revision $@
 
-$(STATE)/virtualbox-vm-revision: $(STATE)/ssh-config $(STATEF)
-	NIX_SSHOPTS="-F $(STATE)/ssh-config" SSH_CONFIG_FILE="$(STATE)/ssh-config" colmena apply
-	NIX_SSHOPTS="-F $(STATE)/ssh-config" SSH_CONFIG_FILE="$(STATE)/ssh-config" colmena exec -- "readlink -f /nix/var/nix/profiles/system > /vagrant/$@"
+$(STATE)/$(ENV)-virtualbox-vm-revision: $(STATE)/$(ENV)-ssh-config $(STATEF)
+	NIX_SSHOPTS="-F $(STATE)/$(ENV)-ssh-config" SSH_CONFIG_FILE="$(STATE)/$(ENV)-ssh-config" colmena apply
+	NIX_SSHOPTS="-F $(STATE)/$(ENV)-ssh-config" SSH_CONFIG_FILE="$(STATE)/$(ENV)-ssh-config" colmena exec --on k3d-server -- "readlink -f /nix/var/nix/profiles/system > /vagrant/$@"
 
-$(STATE)/local-vm-revision: $(STATEF)
+$(STATE)/$(ENV)-local-vm-revision: $(STATEF)
 	touch $@
 
-$(STATE)/virtualbox-kubeconfig: $(STATE)/virtualbox-vm-revision $(STATEF)
-	NIX_SSHOPTS="-F $(STATE)/ssh-config" SSH_CONFIG_FILE="$(STATE)/ssh-config" colmena exec --on k3d-server -- bash /vagrant/shell/make-k3d-cluster.sh $(CLUSTER) /vagrant/$@
+$(STATE)/$(ENV)-virtualbox-kubeconfig: $(STATE)/$(ENV)-virtualbox-vm-revision $(STATEF)
+	NIX_SSHOPTS="-F $(STATE)/$(ENV)-ssh-config" SSH_CONFIG_FILE="$(STATE)/$(ENV)-ssh-config" colmena exec --on k3d-server -- bash /vagrant/shell/make-k3d-cluster.sh $(CLUSTER) /vagrant/$@
 	sed -i 's|server: https://0\.0\.0\.0|server: https://192.168.57.51|g' $@
 
-$(STATE)/local-kubeconfig:  $(STATEF)
-	bash /vagrant/shell/make-k3d-cluster.sh $(CLUSTER) /vagrant/$@
+$(STATE)/$(ENV)-local-kubeconfig: $(STATEF)
+	bash shell/make-k3d-cluster.sh $(CLUSTER) $@
 
-$(STATE)/kubeconfig: $(STATE)/$(DEPLOY)-kubeconfig $(STATEF)
-	cp -L $(STATE)/$(DEPLOY)-kubeconfig $@
+$(STATE)/$(ENV)-kubeconfig: $(STATE)/$(ENV)-$(DEPLOY)-kubeconfig $(STATEF)
+	cp -L $(STATE)/$(ENV)-$(DEPLOY)-kubeconfig $@
 
-tf/terraform.tfstate: $(STATE)/kubeconfig $(shell find tf -type f -iname '*.tf') $(shell find kube/values -type f -iname '*.yaml') $(shell find tf/$(ENV).tfvars) tf/.terraform.lock.hcl
-	( cd tf && terraform init && terraform apply -var env=$(ENV) -var-file=$(ENV).tfvars)
+
+$(STATE)/kubeconfig: $(STATE)/$(ENV)-kubeconfig
+	cp -L $(STATE)/$(ENV)-kubeconfig $@
+
+$(STATE)/$(ENV)-virtualbox-image-%: $(IMAGES) $(STATE)/$(ENV)-kubeconfig
+	NIX_SSHOPTS="-F $(STATE)/$(ENV)-ssh-config" SSH_CONFIG_FILE="$(STATE)/$(ENV)-ssh-config" colmena exec --on k3d-server -- bash /vagrant/shell/import-image.sh $(CLUSTER) /vagrant/$(STATE)/kubeconfig $(shell cat kube/images/$(ENV)/$*) && \
+	touch $@
+
+$(STATE)/$(ENV)-local-image-%: $(IMAGES) $(STATE)/$(ENV)-kubeconfig
+	bash shell/import-image.sh $(CLUSTER) $(STATE)/$(ENV)-kubeconfig $(shell cat kube/images/$(ENV)/$*) && \
+	touch $@
+
+$(STATE)/$(ENV)-image-%: $(STATE)/$(ENV)-$(DEPLOY)-images-$*
+	cp -L $(STATE)/$(ENV)-$(DEPLOY)-images-$* $@
+
+tf/.terraform.lock.hcl: $(STATE)/kubeconfig $(shell find tf -type f -iname '*.tf') $(DEPS_FLAKE)
+	( cd tf && terraform init )
+
+tf/terraform.tfstate: $(STATE)/kubeconfig $(IMAGES_TARGETS) $(shell find tf -type f -iname '*.tf') $(shell find kube/values -type f -iname '*.yaml') $(shell find tf/$(ENV).tfvars) tf/apps/$(ENV).yaml tf/.terraform.lock.hcl
+	( cd tf && terraform apply -var env=$(ENV) -var-file=$(ENV).tfvars)
+
+$(STATE)/$(ENV)-$(DEPLOY)-argocd: tf/terraform.tfstate kube/argocd-cm-patch.yaml
+	kubectl patch configmaps argocd-cm --patch-file kube/argocd-cm-patch.yaml
+	touch $@
 
 clean:
 	vagrant destroy -f
 	rm -rf -- .state
 	rm -rf -- .vagrant
-	rm -rf -- tf/terraform.tfstate
+	rm -rf -- tf/terraform.tfstate*
+	rm -f -- tf/.terraform.lock.hcl
+	rm -rf -- tf/.terraform/
 
-up: $(STATE)/kubeconfig tf/terraform.tfstate
+up: $(STATE)/$(ENV)-kubeconfig $(IMAGES_TARGETS) tf/terraform.tfstate $(STATE)/$(ENV)-$(DEPLOY)-argocd

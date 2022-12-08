@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/necrophcodr/k3d-demo-repo'
+    repoURL: 'https://git.sr.ht/~necrophcodr/k3d-demo-repo'
     path: demo
     targetRevision: HEAD
   destination:
