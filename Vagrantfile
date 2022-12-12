@@ -14,6 +14,8 @@ Vagrant.configure("2") do |config|
       ip: "192.168.57.51"
     server.vm.provider "virtualbox" do |vb|
       vb.memory = "4096"
+      vb.cpus = 2
+      vb.customize ["modifyvm", :id, "--cpuexecutioncap", "80"]
     end
   end
   config.vm.define "ldap-server" do |server|

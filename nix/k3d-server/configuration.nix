@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }@attrs:
+{ config, pkgs, lib, ... }:
 {
   boot.initrd.availableKernelModules = [ "ata_piix" "sd_mod" "sr_mod" ];
   boot.initrd.kernelModules = [ ];
@@ -29,7 +29,10 @@
     supportedFilesystems = ["nfs4"];
   };
 
-  environment.systemPackages = with pkgs; [ vim micro kube3d kubectl ];
+  environment.systemPackages = with pkgs; [
+    kube3d
+    kubectl
+  ];
   security.sudo.configFile =
     ''
     Defaults:root,%wheel env_keep+=LOCALE_ARCHIVE
@@ -40,7 +43,7 @@
   services = {
     openssh.enable    = true;
   };
-  nix.trustedUsers = [ "root" "@wheel" ];
+  nix.settings.trusted-users = [ "root" "@wheel" ];
   users = {
     mutableUsers = false;
     groups.vagrant = {};
@@ -75,7 +78,4 @@
     6443
     19999
   ];
-
-  # The NixOS release to be compatible with for stateful data such as databases.
-  system.stateVersion = "22.05";
 }

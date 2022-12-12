@@ -31,7 +31,7 @@
   services = {
     openssh.enable    = true;
   };
-  nix.trustedUsers = [ "root" "@wheel" ];
+  nix.settings.trusted-users = [ "root" "@wheel" ];
   users = {
     mutableUsers = true;
     groups.vagrant = {};
@@ -79,7 +79,7 @@
           attrs = {
             objectClass = [ "olcDatabaseConfig" "olcMdbConfig" ];
             olcDatabase = "{1}mdb";
-            olcDbDirectory = "/var/db/ldap";
+            olcDbDirectory = "/var/lib/openldap/db/";
             olcDbIndex = [
               "objectClass eq"
               "cn pres,eq"

@@ -1,16 +1,8 @@
 routes = {
   "k3d.local" = [
     {
-      prefixURL = "/grafana(/|$)(.*)"
+      prefixURL = "/grafana"
       service   = "grafana"
-      port      = 80
-      }, {
-      prefixURL = "/prom(/|$)(.*)"
-      service   = "prometheus-server"
-      port      = 80
-      }, {
-      prefixURL = "/dashboard(/|$)(.*)"
-      service   = "k8s-dashboard-kubernetes-dashboard"
       port      = 80
     }
   ]
@@ -18,6 +10,13 @@ routes = {
     {
       prefixURL = "/"
       service   = "argo-cd-argocd-server"
+      port      = 80
+    }
+  ]
+  "grafana.local" = [
+    {
+      prefixURL = "/"
+      service   = "grafana"
       port      = 80
     }
   ]

@@ -74,9 +74,11 @@ tf/.terraform.lock.hcl: $(STATE)/kubeconfig $(shell find tf -type f -iname '*.tf
 
 tf/terraform.tfstate: $(STATE)/kubeconfig $(IMAGES_TARGETS) $(shell find tf -type f -iname '*.tf') $(shell find kube/values -type f -iname '*.yaml') $(shell find tf/$(ENV).tfvars) tf/apps/$(ENV).yaml tf/.terraform.lock.hcl
 	( cd tf && terraform apply -var env=$(ENV) -var-file=$(ENV).tfvars)
+	kubectl wait --for=condition=ready pod --selector=app.kubernetes.io/name=argocd-dex-server --timeout=2m
+	kubectl patch configmaps argocd-cm --patch-file kube/argocd-cm-patch.yaml
+	kubectl delete pod argo-cd-argocd-application-controller-0
 
 $(STATE)/$(ENV)-$(DEPLOY)-argocd: tf/terraform.tfstate kube/argocd-cm-patch.yaml
-	kubectl patch configmaps argocd-cm --patch-file kube/argocd-cm-patch.yaml
 	touch $@
 
 clean:

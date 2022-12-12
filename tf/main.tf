@@ -42,9 +42,9 @@ resource "helm_release" "argocd" {
   name = "argo-cd"
   repository = "https://argoproj.github.io/argo-helm"
   chart = "argo-cd"
-  version = "5.4.3"
+  version = "5.4.5"
   atomic = true
-  timeout = 600
+  timeout = 1200
   values = [
     "${file("../kube/values/${var.env}/argocd.yaml")}"
   ]
